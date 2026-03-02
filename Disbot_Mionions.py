@@ -368,7 +368,8 @@ async def on_ready():
     else:
         await tree.sync()
         print(f"[BOT] Slash commands sincronizados globalmente (pode levar até 1h).")
-    monitor_prices.start()
+    if not monitor_prices.is_running():
+        monitor_prices.start()
 
 
 # ─── Entrypoint ───────────────────────────────────────────────────────────────

@@ -287,6 +287,7 @@ class BotManager(ctk.CTk):
                 text=True,
                 bufsize=0,
                 universal_newlines=True,
+                encoding="utf-8",
             )
             with open(PID_FILE, "w") as f:
                 f.write(str(self.bot_process.pid))
