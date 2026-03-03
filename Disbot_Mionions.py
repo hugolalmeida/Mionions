@@ -356,6 +356,55 @@ async def cmd_resetref(interaction: discord.Interaction, ativo: str = "todos"):
             )
 
 
+@tree.command(name="crypto", description="Pesquisa o preço atual de qualquer criptomoeda")
+@app_commands.describe(moeda="Nome ou símbolo da moeda (ex: BTC, ETH, DOGE, PEPE)")
+async def cmd_crypto(interaction: discord.Interaction, moeda: str):
+    await interaction.response.defer()
+
+    moeda = moeda.strip().upper()
+    symbol = moeda if moeda.endswith("USDT") else f"{moeda}USDT"
+
+    async with aiohttp.ClientSession() as session:
+        ticker = await fetch_ticker(session, symbol)
+
+    if ticker is None:
+        await interaction.followup.send(
+            f"❌ Moeda **{moeda}** não encontrada na Binance.\n"
+            f"Tente o símbolo exato (ex: `BTC`, `ETH`, `DOGE`, `SHIB`, `PEPE`).",
+            ephemeral=True,
+        )
+        return
+
+    coin = format_symbol(symbol)
+    price = float(ticker["lastPrice"])
+    high_24h = float(ticker.get("highPrice", 0))
+    low_24h = float(ticker.get("lowPrice", 0))
+    change_24h = float(ticker.get("priceChangePercent", 0))
+    volume_24h = float(ticker.get("quoteVolume", 0))
+    weighted_avg = float(ticker.get("weightedAvgPrice", 0))
+    open_price = float(ticker.get("openPrice", 0))
+
+    color = discord.Color.green() if change_24h >= 0 else discord.Color.red()
+
+    embed = discord.Embed(
+        title=f"🔍 {coin}/USDT",
+        color=color,
+        timestamp=datetime.now(timezone.utc),
+    )
+    embed.add_field(name="Preço Atual", value=format_price(price), inline=True)
+    embed.add_field(name="Abertura 24h", value=format_price(open_price), inline=True)
+    embed.add_field(name="Variação 24h", value=format_change(change_24h), inline=True)
+    embed.add_field(name="Máxima 24h", value=format_price(high_24h), inline=True)
+    embed.add_field(name="Mínima 24h", value=format_price(low_24h), inline=True)
+    embed.add_field(name="Média Ponderada", value=format_price(weighted_avg), inline=True)
+    embed.add_field(name="Volume 24h (USDT)", value=f"${volume_24h:,.0f}", inline=False)
+
+    monitored = "✅ Monitorado" if symbol in SYMBOLS else "⚠️ Não monitorado"
+    embed.set_footer(text=f"Binance • {monitored}")
+
+    await interaction.followup.send(embed=embed)
+
+
 # ─── Eventos Discord ──────────────────────────────────────────────────────────
 
 @client.event
