@@ -23,6 +23,8 @@ GUILD_ID = int(os.getenv("GUILD_ID") or 0)
 
 ALERT_THRESHOLD = float(os.getenv("ALERT_THRESHOLD", "0.05"))
 CHECK_INTERVAL = int(os.getenv("CHECK_INTERVAL", "60"))
+# WEBHOOK_URL = os.getenv("WEBHOOK_URL", "").strip()
+WEBHOOK_URL = ""  # Webhook desativado temporariamente
 
 SYMBOLS = [s.strip().upper() for s in os.getenv(
     "SYMBOLS", "BTCUSDT,ETHUSDT,SOLUSDT,BNBUSDT,XRPUSDT,UNIUSDT,LDOUSDT,DOTUSDT"
@@ -159,6 +161,24 @@ def build_alert_embed(
     embed.set_footer(text="Binance • Monitoramento Mionions")
     return embed
 
+# ─── Webhook ─────────────────────────────────────────────────────────────────
+
+async def send_webhook_embed(embed: discord.Embed = None, content: str = None):
+    """Envia um embed e/ou mensagem de texto via webhook para outro canal do Discord."""
+    if not WEBHOOK_URL:
+        return
+    try:
+        async with aiohttp.ClientSession() as session:
+            webhook = discord.Webhook.from_url(WEBHOOK_URL, session=session)
+            await webhook.send(
+                content=content,
+                embed=embed,
+                # username="Mionions Crypto",
+                avatar_url=None,
+            )
+    except Exception as e:
+        print(f"[WARN] Falha ao enviar webhook: {e}")
+
 # ─── Loop de monitoramento ────────────────────────────────────────────────────
 
 @tasks.loop(seconds=CHECK_INTERVAL)
@@ -211,6 +231,7 @@ async def monitor_prices():
             )
             try:
                 await channel.send(embed=embed)
+                await send_webhook_embed(embed)
                 print(f"[ALERTA] {symbol}: {pct_change:+.2f}%{ref_age} | "
                       f"{format_price(ref_price)} → {format_price(current_price)}")
                 # Reseta referência para o preço atual após o alerta
@@ -241,6 +262,8 @@ async def before_monitor():
     print(f"[BOT] Online como {client.user}")
     print(f"[BOT] Ativos: {', '.join(format_symbol(s) for s in SYMBOLS)}")
     print(f"[BOT] Alerta em: ±{ALERT_THRESHOLD * 100:.0f}% | Checagem a cada {CHECK_INTERVAL}s")
+    if WEBHOOK_URL:
+        print(f"[BOT] Webhook ativo — alertas serão enviados para canal adicional.")
     if saved:
         print(f"[BOT] {len(saved)} referência(s) restauradas do arquivo salvo.")
     else:
@@ -293,6 +316,7 @@ async def cmd_precos(interaction: discord.Interaction):
 
     embed.set_footer(text=f"Binance • Threshold: ±{ALERT_THRESHOLD * 100:.0f}%")
     await interaction.response.send_message(embed=embed)
+    await send_webhook_embed(embed)
 
 
 @tree.command(name="status", description="Mostra o status atual do bot de monitoramento")
@@ -318,6 +342,7 @@ async def cmd_status(interaction: discord.Interaction):
     embed.add_field(name="Arquivo de Referências", value=ref_file_info, inline=True)
     embed.set_footer(text="Binance • Monitoramento Mionions")
     await interaction.response.send_message(embed=embed)
+    await send_webhook_embed(embed)
 
 
 @tree.command(name="resetref", description="Reseta o preço de referência de um ativo (ou todos)")
@@ -332,9 +357,9 @@ async def cmd_resetref(interaction: discord.Interaction, ativo: str = "todos"):
                 reference_prices[sym] = current_prices[sym]
                 reference_timestamps[sym] = now
         save_references()
-        await interaction.response.send_message(
-            "✅ Referências resetadas para o preço atual de todos os ativos.", ephemeral=True
-        )
+        msg = "✅ Referências resetadas para o preço atual de todos os ativos."
+        await interaction.response.send_message(msg, ephemeral=True)
+        await send_webhook_embed(content=msg)
     else:
         symbol = ativo if ativo.endswith("USDT") else f"{ativo}USDT"
         if symbol not in SYMBOLS:
@@ -346,10 +371,9 @@ async def cmd_resetref(interaction: discord.Interaction, ativo: str = "todos"):
             reference_prices[symbol] = current_prices[symbol]
             reference_timestamps[symbol] = now
             save_references()
-            await interaction.response.send_message(
-                f"✅ Referência de **{ativo}** resetada para {format_price(current_prices[symbol])}.",
-                ephemeral=True,
-            )
+            msg = f"✅ Referência de **{ativo}** resetada para {format_price(current_prices[symbol])}."
+            await interaction.response.send_message(msg, ephemeral=True)
+            await send_webhook_embed(content=msg)
         else:
             await interaction.response.send_message(
                 f"⏳ Preço de `{ativo}` ainda não carregado.", ephemeral=True
@@ -403,6 +427,7 @@ async def cmd_crypto(interaction: discord.Interaction, moeda: str):
     embed.set_footer(text=f"Binance • {monitored}")
 
     await interaction.followup.send(embed=embed)
+    await send_webhook_embed(embed)
 
 
 # ─── Eventos Discord ──────────────────────────────────────────────────────────
