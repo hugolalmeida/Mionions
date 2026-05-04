@@ -274,8 +274,10 @@ async def before_monitor():
 
 @tree.command(name="precos", description="Mostra os preços atuais de todos os ativos monitorados")
 async def cmd_precos(interaction: discord.Interaction):
+    await interaction.response.defer()
+
     if not current_prices:
-        await interaction.response.send_message(
+        await interaction.followup.send(
             "⏳ Ainda carregando preços, tente novamente em alguns segundos.", ephemeral=True
         )
         return
@@ -315,7 +317,7 @@ async def cmd_precos(interaction: discord.Interaction):
         )
 
     embed.set_footer(text=f"Binance • Threshold: ±{ALERT_THRESHOLD * 100:.0f}%")
-    await interaction.response.send_message(embed=embed)
+    await interaction.followup.send(embed=embed)
     await send_webhook_embed(embed)
 
 
